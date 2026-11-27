@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGR Compact Label Hub - Searchable Batch Printer</title>
+    <!-- JsBarcode library for barcode rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <!-- SheetJS library for reading Excel files -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2196F3;
+            --returo-green: #2fa163;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+
+        .no-print-panel {
+            background-color: #ffffff;
+            padding: 24px;
+            max-width: 650px;
+            margin: 20px auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .no-print-panel h2 {
+            margin-top: 0;
+            color: var(--returo-green);
+            border-bottom: 2px solid #eaeaea;
+            padding-bottom: 10px;
+            font-size: 20px;
+        }
+
+        .excel-section {
+            background-color: #f0fdf4;
+            border: 1px dashed var(--returo-green);
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        .excel-section h3 {
+            font-size: 14px;
+            color: #166534;
+            margin-bottom: 8px;
+        }
+
+        .file-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            font-size: 13px;
+        }
+
+        .excel-summary {
+            font-size: 12px;
+            margin-top: 8px;
+            color: #15803d;
+            font-weight: 600;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full-width {
+            grid-column: span 2;
+        }
+
+        .form-group label {
+            margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .form-group input, .form-group select {
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .search-box-wrapper {
+            margin-bottom: 6px;
+        }
+
+        .search-box-wrapper input {
+            width: 100%;
+            background-color: #ffffff;
+            border: 1px solid #2fa163;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #eef1f6;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-back {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 16px;
+            background-color: #e0e0e0;
+            color: #333;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .btn-back:hover {
+            background-color: #d0d0d0;
+        }
+
+        .btn-print {
+            background-color: var(--returo-green);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            flex: 1;
+            transition: background 0.2s;
+        }
+
+        .btn-print:hover {
+            background-color: #24824f;
+        }
+
+        .btn-clear {
+            background-color: #dc2626;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        #print-workspace {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px; 
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* --- STANDARD LABEL CONTAINER --- */
+        .sgr-label-container {
+            background: #ffffff;
+            border: 1px dashed #ccc; 
+            box-sizing: border-box;
+            padding: 2mm; 
+            background-color: #ffffff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            overflow: hidden;
+            width: 60mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .product-title {
+            font-weight: bold;
+            font-size: 11px;
+            text-transform: uppercase;
+            line-height: 1.15;
+            text-align: center;
+            color: #000;
+            word-break: break-word;
+            margin-bottom: 1.5mm;
+        }
+
+        .importer-details {
+            font-size: 7.5px;
+            text-align: center;
+            color: #222;
+            line-height: 1.1;
+            margin-top: 1.5mm;
+            word-break: break-word;
+        }
+
+        .label-content-wrapper {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            column-gap: 1.5mm; 
+            width: 100%;
+            align-items: center;
+        }
+
+        .sgr-logo-box {
+            grid-column: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 12mm;
+            height: 12mm;
+            flex-shrink: 0;
+        }
+
+        .sgr-logo-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .barcode-wrapper {
+            grid-column: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .barcode-wrapper svg {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 14mm;
+            display: block;
+        }
+
+        /* --- BROTHER QL PRINT STYLES --- */
+        body.brother-mode #print-workspace {
+            display: block !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
+            width: 62mm !important;
+        }
+
+        body.brother-mode .sgr-label-container {
+            width: 60mm !important;
+            margin: 0 auto 5px auto !important;
+            border: 1px dashed #ccc;
+        }
+
+        @media print {
+            body { background-color: #ffffff !important; }
+            .no-print-panel { display: none !important; }
+            #print-workspace { padding: 0 !important; margin: 0 !important; gap: 0 !important; display: block !important; }
+            
+            .sgr-label-container { 
+                border: none !important; 
+                page-break-inside: avoid; 
+                break-inside: avoid; 
+            }
+
+            /* Brother QL Auto continuous printing setup */
+            body.brother-mode @page {
+                size: 62mm auto;
+                margin: 0mm !important;
+            }
+
+            body.brother-mode .sgr-label-container {
+                width: 60mm !important;
+                margin: 0 auto !important;
+                padding: 1.5mm 0 !important;
+                page-break-after: always;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print-panel">
+        <h2>🏷️ SGR Label Printer By <a href="https://www.arijkharel.com.np" target="_blank">Arij Kharel</a></h2>
+        
+        <div class="btn-container">
+            <a href="index.php" class="btn-back">← Acasă</a>
+            <button class="btn-print" onclick="window.print()">Printează Etichetele</button>
+        </div>
+
+        <!-- Excel Upload Section -->
+        <div class="excel-section">
+            <h3>📊 Încarcă fișier Excel (Batch Import)</h3>
+            <div class="file-input-wrapper">
+                <input type="file" id="excelFile" accept=".xlsx, .xls">
+                <button type="button" class="btn-clear" id="btnClearExcel" style="display:none;" onclick="clearExcelData()">Șterge Excel</button>
+            </div>
+            
+            <!-- Excel Product Search & Dropdown Selection -->
+            <div class="form-group" id="excelSelectGroup" style="display: none; margin-top: 12px;">
+                <label for="excelProductSearch">🔍 Căutare / Selectare Produs:</label>
+                
+                <div class="search-box-wrapper">
+                    <input type="text" id="excelProductSearch" placeholder="Tastați pentru a căuta (Nume sau Cod)...">
+                </div>
+
+                <select id="excelProductSelect">
+                    <option value="ALL">-- Toate Produsele (All Products) --</option>
+                </select>
+            </div>
+
+            <div id="excelSummary" class="excel-summary"></div>
+        </div>
+        
+        <div class="form-grid">
+            <div class="form-group full-width" id="singleTitleGroup">
+                <label for="productTitle">Denumire Produs & Masa Netă:</label>
+                <input type="text" id="productTitle" value="ITS FALOODA MANGO (290ML)" placeholder="Ex: APA MINERALA CARBOGAZOASA 500ML">
+            </div>
+
+            <div class="form-group full-width">
+                <label for="importerDetails">Detalii Importator / Distribuitor:</label>
+                <input type="text" id="importerDetails" value="Importator și distribuitor: Kathmandu Mart SRL, Șoseaua Ștefan cel Mare 240, București, România. E-mail: ktmmartromania@gmail.com" placeholder="Ex: Importator și distribuitor: ...">
+            </div>
+
+            <div class="form-group" id="singleBarcodeGroup">
+                <label for="barcodeValue">Cod de Bare SGR:</label>
+                <input type="text" id="barcodeValue" value="5943241000093" placeholder="Introduceți codul numeric...">
+            </div>
+            
+            <div class="form-group">
+                <label for="barcodeType">Tip Simbologie:</label>
+                <select id="barcodeType">
+                    <option value="AUTO" selected>Auto (Recomandat)</option>
+                    <option value="EAN13">EAN-13 (Standard)</option>
+                    <option value="EAN8">EAN-8 (Ambalaje mici)</option>
+                    <option value="CODE128">CODE128 (Universale)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="printMode">Format Imprimantă / Mod Print:</label>
+                <select id="printMode">
+                    <option value="brother" selected>Brother QL (Rola Continuă 62mm)</option>
+                    <option value="grid">Grid Standard / Sheet A4</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="copyCount">Număr de Copii per Produs:</label>
+                <input type="number" id="copyCount" value="1" min="1" max="500">
+            </div>
+
+            <div class="form-group full-width" style="flex-direction: row; gap: 15px;">
+                <label class="checkbox-group" style="flex: 1;">
+                    <input type="checkbox" id="toggleSgrLogo" checked> Afișează Logo SGR
+                </label>
+            </div>
+        </div>
+
+        <div class="btn-container">
+            <button class="btn-print" onclick="window.print()">Printează Etichetele</button>
+        </div>
+    </div>
+
+    <div id="print-workspace"></div>
+
+    <script>
+        const productTitleInput = document.getElementById('productTitle');
+        const importerDetailsInput = document.getElementById('importerDetails');
+        const barcodeInput = document.getElementById('barcodeValue');
+        const barcodeTypeSelect = document.getElementById('barcodeType');
+        const printModeSelect = document.getElementById('printMode');
+        const copyCountInput = document.getElementById('copyCount');
+        const toggleSgrLogo = document.getElementById('toggleSgrLogo');
+        const workspace = document.getElementById('print-workspace');
+        
+        const excelFileInput = document.getElementById('excelFile');
+        const excelSummary = document.getElementById('excelSummary');
+        const btnClearExcel = document.getElementById('btnClearExcel');
+        const excelSelectGroup = document.getElementById('excelSelectGroup');
+        const excelProductSearch = document.getElementById('excelProductSearch');
+        const excelProductSelect = document.getElementById('excelProductSelect');
+        const singleTitleGroup = document.getElementById('singleTitleGroup');
+        const singleBarcodeGroup = document.getElementById('singleBarcodeGroup');
+
+        let excelDataList = []; // Array of [{title, barcode, originalIndex}]
+
+        // Read Excel File
+        excelFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    excelDataList = [];
+
+                    if (rows.length > 0) {
+                        let titleColIdx = 0;
+                        let barcodeColIdx = 1;
+
+                        const header = rows[0].map(cell => String(cell).toLowerCase().trim());
+                        
+                        header.forEach((colName, idx) => {
+                            if (colName.includes('name') || colName.includes('produs') || colName.includes('title') || colName.includes('denumire')) {
+                                titleColIdx = idx;
+                            }
+                            if (colName.includes('barcode') || colName.includes('cod') || colName.includes('ean') || colName.includes('bare')) {
+                                barcodeColIdx = idx;
+                            }
+                        });
+
+                        const startRow = (header.some(h => h.includes('name') || h.includes('barcode') || h.includes('produs') || h.includes('cod'))) ? 1 : 0;
+
+                        for (let i = startRow; i < rows.length; i++) {
+                            const row = rows[i];
+                            if (!row || row.length === 0) continue;
+
+                            const title = row[titleColIdx] ? String(row[titleColIdx]).trim() : '';
+                            const barcode = row[barcodeColIdx] ? String(row[barcodeColIdx]).trim() : '';
+
+                            if (title || barcode) {
+                                excelDataList.push({ title, barcode, originalIndex: excelDataList.length });
+                            }
+                        }
+                    }
+
+                    if (excelDataList.length > 0) {
+                        excelProductSearch.value = '';
+                        populateDropdown(excelDataList);
+                        excelSummary.textContent = `✅ Am încărcat ${excelDataList.length} produse din Excel.`;
+                        btnClearExcel.style.display = 'inline-block';
+                        excelSelectGroup.style.display = 'flex';
+                        singleTitleGroup.style.opacity = '0.5';
+                        singleBarcodeGroup.style.opacity = '0.5';
+                    } else {
+                        excelSummary.textContent = '❌ Nu s-au găsit date valide în fișier.';
+                    }
+
+                    buildLabels();
+                } catch (err) {
+                    alert('Eroare la citirea fișierului Excel: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // Filter Dropdown options dynamically via search box
+        excelProductSearch.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+            const filtered = excelDataList.filter(item => 
+                item.title.toLowerCase().includes(query) || 
+                item.barcode.toLowerCase().includes(query)
+            );
+            populateDropdown(filtered);
+            buildLabels();
+        });
+
+        function populateDropdown(items) {
+            excelProductSelect.innerHTML = '<option value="ALL">-- Toate Produsele (All Products) --</option>';
+            items.forEach((item) => {
+                const option = document.createElement('option');
+                option.value = item.originalIndex;
+                option.textContent = `${item.originalIndex + 1}. ${item.title || 'Fără Nume'} [${item.barcode || 'Fără Cod'}]`;
+                excelProductSelect.appendChild(option);
+            });
+        }
+
+        function clearExcelData() {
+            excelDataList = [];
+            excelFileInput.value = '';
+            excelProductSearch.value = '';
+            excelSummary.textContent = '';
+            excelProductSelect.innerHTML = '<option value="ALL">-- Toate Produsele (All Products) --</option>';
+            btnClearExcel.style.display = 'none';
+            excelSelectGroup.style.display = 'none';
+            singleTitleGroup.style.opacity = '1';
+            singleBarcodeGroup.style.opacity = '1';
+            buildLabels();
+        }
+
+        function buildLabels() {
+            workspace.innerHTML = '';
+            const importerText = importerDetailsInput.value.trim();
+            const selectedType = barcodeTypeSelect.value;
+            const mode = printModeSelect.value;
+            const copies = parseInt(copyCountInput.value) || 1;
+            const showLogo = toggleSgrLogo.checked;
+
+            if (mode === "brother") {
+                document.body.classList.add('brother-mode');
+            } else {
+                document.body.classList.remove('brother-mode');
+            }
+
+            let itemsToProcess = [];
+
+            if (excelDataList.length > 0) {
+                const selectedVal = excelProductSelect.value;
+                if (selectedVal === "ALL") {
+                    // Get currently filtered list if searching
+                    const query = excelProductSearch.value.toLowerCase().trim();
+                    itemsToProcess = excelDataList.filter(item => 
+                        item.title.toLowerCase().includes(query) || 
+                        item.barcode.toLowerCase().includes(query)
+                    );
+                } else {
+                    const selectedIdx = parseInt(selectedVal);
+                    const item = excelDataList.find(i => i.originalIndex === selectedIdx);
+                    if (item) itemsToProcess = [item];
+                }
+            } else {
+                itemsToProcess = [{ title: productTitleInput.value.trim(), barcode: barcodeInput.value.trim() }];
+            }
+
+            itemsToProcess.forEach(item => {
+                const titleText = item.title;
+                const rawVal = item.barcode;
+
+                for (let i = 0; i < copies; i++) {
+                    const labelContainer = document.createElement('div');
+                    labelContainer.className = 'sgr-label-container';
+                    
+                    // 1. Title Header
+                    if (titleText !== "") {
+                        const titleDiv = document.createElement('div');
+                        titleDiv.className = 'product-title';
+                        titleDiv.textContent = titleText;
+                        labelContainer.appendChild(titleDiv);
+                    }
+
+                    // 2. Barcode & Logo Wrapper
+                    const contentWrapper = document.createElement('div');
+                    contentWrapper.className = 'label-content-wrapper';
+
+                    const barcodeBox = document.createElement('div');
+                    barcodeBox.className = 'barcode-wrapper';
+                    
+                    const barcodeSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                    barcodeBox.appendChild(barcodeSvg);
+                    contentWrapper.appendChild(barcodeBox);
+
+                    if (showLogo) {
+                        const logoBox = document.createElement('div');
+                        logoBox.className = 'sgr-logo-box';
+                        const logoImg = document.createElement('img');
+                        logoImg.src = 'logo_sgr_transparent.png';
+                        logoImg.alt = 'Logo SGR';
+                        logoBox.appendChild(logoImg);
+                        contentWrapper.appendChild(logoBox);
+                    } else {
+                        barcodeBox.style.gridColumn = 'span 2';
+                    }
+
+                    labelContainer.appendChild(contentWrapper);
+
+                    // 3. Importer Details
+                    if (importerText !== "") {
+                        const importerDiv = document.createElement('div');
+                        importerDiv.className = 'importer-details';
+                        importerDiv.textContent = importerText;
+                        labelContainer.appendChild(importerDiv);
+                    }
+
+                    workspace.appendChild(labelContainer);
+
+                    if (rawVal !== "") {
+                        let clean = rawVal.replace(/\D/g, '');
+                        let targetFormat = selectedType;
+
+                        if (selectedType === 'AUTO') {
+                            if (clean.length === 13 || clean.length === 12) targetFormat = 'EAN13';
+                            else if (clean.length === 8) targetFormat = 'EAN8';
+                            else targetFormat = 'CODE128';
+                        }
+
+                        try {
+                            JsBarcode(barcodeSvg, clean || rawVal, {
+                                format: targetFormat,
+                                flat: true,
+                                width: 1.3, 
+                                height: 25,
+                                margin: 0,
+                                displayValue: true,
+                                fontSize: 10,
+                                textMargin: 1, 
+                                background: "#ffffff",
+                                lineColor: "#000000"
+                            });
+                        } catch (e) {
+                            JsBarcode(barcodeSvg, rawVal, {
+                                format: "CODE128",
+                                width: 1.2, 
+                                height: 25,
+                                margin: 0,
+                                displayValue: true,
+                                fontSize: 10,
+                                textMargin: 1, 
+                                background: "#ffffff",
+                                lineColor: "#000000"
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        [productTitleInput, importerDetailsInput, barcodeInput, barcodeTypeSelect, printModeSelect, copyCountInput, toggleSgrLogo, excelProductSelect].forEach(element => {
+            element.addEventListener('input', buildLabels);
+            element.addEventListener('change', buildLabels);
+        });
+
+        buildLabels();
+    </script>
+</body>
+</html>
